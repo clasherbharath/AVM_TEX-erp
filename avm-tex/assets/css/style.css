@@ -1,0 +1,192 @@
+:root{
+  --avm-cream:#f7f1e1;
+  --avm-maroon:#6b1022;
+  --avm-gold:#c9a227;
+  --avm-green:#0f3d2e;
+  --avm-ink:#0e1114;
+}
+
+.avm-bg{
+  background: linear-gradient(120deg, rgba(15,61,46,.08), rgba(201,162,39,.10), rgba(107,16,34,.06));
+  min-height:100vh;
+  color: var(--avm-ink);
+}
+
+.avm-navbar{
+  background: linear-gradient(90deg, var(--avm-green), #123f33);
+}
+
+.btn-avm-gold{
+  background: linear-gradient(135deg, var(--avm-gold), #e2c468);
+  border:0;
+  color:#1b1400;
+  font-weight:600;
+}
+.btn-avm-gold:hover{ filter: brightness(.98); }
+
+.avm-login-wrap{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+}
+
+.avm-login-card{
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 18px;
+  overflow:hidden;
+  background: rgba(255,255,255,.82);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 18px 60px rgba(14,17,20,.12);
+}
+
+.avm-login-hero{
+  background:
+    radial-gradient(900px 500px at 20% 15%, rgba(201,162,39,.35), transparent 60%),
+    radial-gradient(600px 420px at 70% 65%, rgba(107,16,34,.25), transparent 55%),
+    linear-gradient(140deg, rgba(15,61,46,.96), rgba(107,16,34,.92));
+  color:#fff;
+  position:relative;
+}
+.avm-login-hero::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(45deg, rgba(247,241,225,.08) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(247,241,225,.08) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(247,241,225,.08) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(247,241,225,.08) 75%);
+  background-size: 26px 26px;
+  background-position: 0 0, 0 13px, 13px -13px, -13px 0px;
+  opacity:.25;
+  pointer-events:none;
+}
+
+.avm-hero-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:.5rem;
+  padding:.35rem .65rem;
+  border-radius:999px;
+  background: rgba(247,241,225,.14);
+  border: 1px solid rgba(247,241,225,.20);
+  font-weight:600;
+}
+
+.avm-sidebar{
+  background: linear-gradient(180deg, var(--avm-green), #0b2e23);
+  color:#fff;
+  width: 280px;
+}
+
+.avm-brand-badge{
+  border-radius: 14px;
+  padding: 14px 14px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+}
+
+.avm-navlink{
+  color: rgba(255,255,255,.88);
+  border-radius: 12px !important;
+  padding: .65rem .8rem;
+}
+.avm-navlink:hover{
+  background: rgba(255,255,255,.08);
+  color:#fff;
+}
+.avm-navlink.active{
+  background: linear-gradient(135deg, rgba(201,162,39,.95), rgba(201,162,39,.70));
+  color:#1b1400;
+  font-weight:700;
+}
+
+.avm-content{
+  padding: 22px;
+}
+
+/* Fixed sidebar on desktop — prevents empty top gap before main content */
+@media (min-width: 992px){
+  #avmSidebar.offcanvas-lg{
+    position: fixed;
+    top: 56px;
+    bottom: 0;
+    left: 0;
+    width: 280px;
+    transform: none !important;
+    visibility: visible !important;
+    z-index: 1020;
+  }
+}
+
+.avm-card{
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 16px;
+  box-shadow: 0 12px 36px rgba(14,17,20,.08);
+}
+
+.avm-metric{
+  font-weight:800;
+  letter-spacing: -.02em;
+}
+
+.avm-muted{
+  color: rgba(14,17,20,.65);
+}
+
+.btn-avm-green{
+  background: linear-gradient(135deg, var(--avm-green), #1a5240);
+  border:0;
+  color:#fff;
+  font-weight:600;
+}
+.btn-avm-green:hover{
+  filter: brightness(1.05);
+  color:#fff;
+}
+
+.avm-table thead th{
+  background: rgba(15,61,46,.08);
+  color: var(--avm-green);
+  font-weight:700;
+  border-bottom: 2px solid rgba(201,162,39,.35);
+  white-space: nowrap;
+}
+
+.avm-badge-count{
+  background: rgba(107,16,34,.10);
+  color: var(--avm-maroon);
+  border: 1px solid rgba(107,16,34,.18);
+  font-weight:600;
+}
+
+.avm-gst-badge{
+  background: rgba(201,162,39,.18);
+  color: #1b1400;
+  border: 1px solid rgba(201,162,39,.35);
+  font-weight:600;
+  font-family: ui-monospace, monospace;
+  font-size: .75rem;
+}
+
+.avm-modal{
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,.06);
+  overflow: hidden;
+}
+
+.avm-modal .modal-header{
+  background: linear-gradient(90deg, rgba(15,61,46,.08), rgba(201,162,39,.12));
+}
+
+.avm-form-hint{
+  background: rgba(247,241,225,.55);
+  border: 1px solid rgba(201,162,39,.25);
+}
+
+.avm-customer-form .form-control:focus,
+.avm-customer-form .form-select:focus{
+  border-color: rgba(201,162,39,.65);
+  box-shadow: 0 0 0 .2rem rgba(201,162,39,.18);
+}
+
