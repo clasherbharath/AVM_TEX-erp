@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../includes/security.php';
+
 /** @var array<int, array<string, mixed>> $customerList */
 /** @var string $invoiceNumber */
 /** @var array<string, mixed>|null $old */
@@ -13,28 +15,11 @@ $invoiceDate = (string)($old['invoice_date'] ?? date('Y-m-d'));
 $discount = (string)($old['discount'] ?? '0');
 $status = (string)($old['status'] ?? 'pending');
 $notes = (string)($old['notes'] ?? '');
-$oldItems = [];
-
-if (is_array($old['items'] ?? null)) {
-    $oldItems = $old['items'];
-} elseif (is_array($old['product_id'] ?? null)) {
-    $productIds = array_values($old['product_id']);
-    $quantities = array_values(is_array($old['quantity'] ?? null) ? $old['quantity'] : []);
-    $prices = array_values(is_array($old['price'] ?? null) ? $old['price'] : []);
-    $gstValues = array_values(is_array($old['gst'] ?? null) ? $old['gst'] : []);
-
-    foreach ($productIds as $idx => $productId) {
-        $oldItems[] = [
-            'product_id' => (int)$productId,
-            'quantity' => $quantities[$idx] ?? '1',
-            'price' => $prices[$idx] ?? '0',
-            'gst_percentage' => $gstValues[$idx] ?? '0',
-        ];
-    }
-}
+$oldItems = is_array($old['items'] ?? null) ? $old['items'] : [];
 ?>
 
 <form method="post" action="<?= APP_BASE ?>/billing/save_invoice.php" id="invoiceForm">
+    <?= csrfTokenInput() ?>
     <div class="row g-3 mb-4">
         <div class="col-12 col-md-4">
             <label class="form-label">Invoice Number</label>
@@ -97,12 +82,12 @@ if (is_array($old['items'] ?? null)) {
     <template id="invoiceRowTemplate">
         <tr>
             <td>
-                <select name="product_id[]" class="form-select item-product" required></select>
+                <select name="items[ROW_INDEX][product_id]" class="form-select item-product" required></select>
                 <div class="small text-danger stock-warn d-none mt-1">Exceeds available stock</div>
             </td>
-            <td><input type="number" name="quantity[]" class="form-control item-qty" min="0.01" step="0.01" value="1" required></td>
-            <td><input type="number" name="price[]" class="form-control item-price" min="0" step="0.01" required></td>
-            <td><input type="number" name="gst[]" class="form-control item-gst" min="0" max="100" step="0.01" required></td>
+            <td><input type="number" name="items[ROW_INDEX][quantity]" class="form-control item-qty" min="0.01" step="0.01" value="1" required></td>
+            <td><input type="number" name="items[ROW_INDEX][price]" class="form-control item-price" min="0" step="0.01" required></td>
+            <td><input type="number" name="items[ROW_INDEX][gst_percentage]" class="form-control item-gst" min="0" max="100" step="0.01" required></td>
             <td class="line-subtotal">₹ 0.00</td>
             <td class="line-total fw-semibold">₹ 0.00</td>
             <td><button type="button" class="btn btn-sm btn-outline-danger remove-row">×</button></td>

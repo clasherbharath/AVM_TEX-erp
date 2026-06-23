@@ -81,7 +81,7 @@ $customerAddress = trim(implode(', ', array_filter([
 ])));
 
 $html = '<!doctype html><html><head><meta charset="utf-8"><style>' .
-    'body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;color:#333;margin:0;padding:0;} ' .
+    'body{font-family:Arial,Helvetica,sans-serif;color:#333;margin:0;padding:0;} ' .
     '.page{padding:24px;} ' .
     'table.layout{width:100%;border-collapse:collapse;margin-bottom:24px;} ' .
     '.company-name{font-size:22px;font-weight:700;margin:0 0 6px;} ' .
@@ -96,8 +96,7 @@ $html = '<!doctype html><html><head><meta charset="utf-8"><style>' .
     '.text-right{text-align:right;} ' .
     '.summary td{border:none;padding:6px 8px;} ' .
     '.summary .label{text-align:right;font-weight:700;} ' .
-    '.footer{margin-top:24px;font-size:11px;color:#555;text-align:center;} ' .
-    '.currency-test{font-size:14px;font-weight:bold;margin:12px 0;color:#006600;}' .
+    '.footer{margin-top:24px;font-size:11px;color:#555;text-align:center;}' .
     '</style></head><body><div class="page">';
 
 $html .= '<table class="layout"><tr><td style="vertical-align:top;width:70%;">';
@@ -184,15 +183,11 @@ $html .= '<div class="footer">Thank you for your business — A.V.M TEX</div>';
 $html .= '</div></body></html>';
 
 $dompdfOptions = new Dompdf\Options();
-$dompdfOptions->set('defaultFont', 'dejavusans');
+$dompdfOptions->set('defaultFont', 'Helvetica');
 $dompdfOptions->set('isRemoteEnabled', true);
-$dompdfOptions->set('fontDir', __DIR__ . '/../lib/dompdf/vendor/dompdf/dompdf/lib/fonts');
-$dompdfOptions->set('fontCache', sys_get_temp_dir() . '/dompdf_fonts');
-$dompdfOptions->set('enablePhp', false);
-$dompdfOptions->set('isHtml5ParserEnabled', true);
 $dompdf = new Dompdf\Dompdf($dompdfOptions);
 $dompdf->setPaper('A4', 'portrait');
-$dompdf->loadHtml($html, 'UTF-8');
+$dompdf->loadHtml($html);
 $dompdf->render();
 
 $filename = 'invoice_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $invoice['invoice_number']) . '.pdf';

@@ -173,6 +173,70 @@ require_once __DIR__ . '/../includes/sidebar.php';
                                     <span class="badge bg-success rounded-pill">→</span>
                                 </div>
                             </a>
+                            <a href="<?= APP_BASE ?>/reports/inventory_history_report.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Inventory History Report</h6>
+                                        <p class="mb-0 small text-muted">Chronological stock movement audit trail</p>
+                                    </div>
+                                    <span class="badge bg-success rounded-pill">→</span>
+                                </div>
+                            </a>
+                            <a href="<?= APP_BASE ?>/reports/product_movement_report.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Product Movement Report</h6>
+                                        <p class="mb-0 small text-muted">Movement totals by product</p>
+                                    </div>
+                                    <span class="badge bg-success rounded-pill">→</span>
+                                </div>
+                            </a>
+                            <a href="<?= APP_BASE ?>/reports/stock_audit_report.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Stock Audit Report</h6>
+                                        <p class="mb-0 small text-muted">Compare current stock against ledger totals</p>
+                                    </div>
+                                    <span class="badge bg-success rounded-pill">→</span>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card avm-card">
+                        <div class="card-header bg-light border-bottom">
+                            <h5 class="mb-0">Procurement Reports</h5>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            <a href="<?= APP_BASE ?>/reports/purchase_report.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Purchase Report</h6>
+                                        <p class="mb-0 small text-muted">Procurement totals, receipts, and margin preview</p>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">→</span>
+                                </div>
+                            </a>
+                            <a href="<?= APP_BASE ?>/reports/supplier_report.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Supplier Report</h6>
+                                        <p class="mb-0 small text-muted">Supplier purchase and outstanding balance summary</p>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">→</span>
+                                </div>
+                            </a>
+                            <a href="<?= APP_BASE ?>/reports/accounts_payable_report.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Accounts Payable</h6>
+                                        <p class="mb-0 small text-muted">Outstanding supplier liabilities and aging view</p>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">→</span>
+                                </div>
+                            </a>
                         </div>
                     </div>
                 </div>

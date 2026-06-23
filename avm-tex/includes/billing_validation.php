@@ -13,6 +13,8 @@ require_once __DIR__ . '/../helpers/invoice_helper.php';
 function validateInvoicePost(PDO $pdo, array $post): array
 {
     $errors = [];
+    $rows = [];
+    $qtyByProduct = [];
     $customerId = (int)($post['customer_id'] ?? 0);
     $invoiceDate = trim((string)($post['invoice_date'] ?? ''));
     $status = (string)($post['status'] ?? 'pending');
@@ -139,23 +141,44 @@ function validateInvoicePost(PDO $pdo, array $post): array
         $errors['items'] = 'Add at least one valid line item.';
     }
 
-    foreach ($qtyByProduct as $productId => $neededQty) {
-        $inv = $pdo->prepare('SELECT product_name, quantity FROM inventory WHERE id = :id LIMIT 1');
-        $inv->execute([':id' => $productId]);
-        $product = $inv->fetch(PDO::FETCH_ASSOC);
+    if ($qtyByProduct !== []) {
+        $placeholders = [];
+        $params = [];
 
-        if (!$product) {
-            $errors['items'] = 'One or more products are invalid.';
-            break;
+        foreach (array_values(array_keys($qtyByProduct)) as $index => $productId) {
+            $placeholder = ':product_' . $index;
+            $placeholders[] = $placeholder;
+            $params[$placeholder] = $productId;
         }
-        if ((float)$product['quantity'] < $neededQty) {
-            $errors['items'] = sprintf(
-                'Insufficient stock for "%s". Available: %s, requested: %s',
-                $product['product_name'],
-                $product['quantity'],
-                $neededQty
-            );
-            break;
+
+        $inventoryStmt = $pdo->prepare(
+            'SELECT id, product_name, quantity FROM inventory WHERE id IN (' . implode(', ', $placeholders) . ')'
+        );
+        $inventoryStmt->execute($params);
+
+        /** @var array<int, array<string, mixed>> $inventoryMap */
+        $inventoryMap = [];
+        foreach ($inventoryStmt->fetchAll(PDO::FETCH_ASSOC) as $product) {
+            $inventoryMap[(int)$product['id']] = $product;
+        }
+
+        foreach ($qtyByProduct as $productId => $neededQty) {
+            $product = $inventoryMap[$productId] ?? null;
+
+            if (!$product) {
+                $errors['items'] = 'One or more products are invalid.';
+                break;
+            }
+
+            if ((float)$product['quantity'] < $neededQty) {
+                $errors['items'] = sprintf(
+                    'Insufficient stock for "%s". Available: %s, requested: %s',
+                    $product['product_name'],
+                    $product['quantity'],
+                    $neededQty
+                );
+                break;
+            }
         }
     }
 

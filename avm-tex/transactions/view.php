@@ -5,11 +5,14 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../helpers/format_currency.php';
+require_once __DIR__ . '/../helpers/transaction_schema.php';
 
 $pageTitle = 'View Transaction • A.V.M TEX ERP';
 $activeMenu = 'Transactions';
 
 $id = (int)($_GET['id'] ?? 0);
+$transactionSchema = getTransactionSchema($pdo);
+$transactionPk = (string)$transactionSchema['primary_key'];
 if ($id <= 0) {
     $_SESSION['flash_error'] = 'Invalid transaction selected.';
     header('Location: ' . APP_BASE . '/transactions/index.php');
@@ -17,14 +20,12 @@ if ($id <= 0) {
 }
 
 $stmt = $pdo->prepare(
-    'SELECT t.id, t.transaction_type, t.invoice_id, t.reference_number,
-            t.transaction_date, t.amount, t.payment_method, t.bank_name,
-            t.cheque_number, t.transaction_notes, t.recorded_by, t.created_at, t.updated_at,
+    'SELECT ' . implode(', ', getTransactionSelectParts($transactionSchema)) . ',
             i.invoice_number, c.customer_name
      FROM transactions t
      LEFT JOIN invoices i ON t.invoice_id = i.id
-     LEFT JOIN customers c ON i.customer_id = c.id
-     WHERE t.id = :id LIMIT 1'
+     ' . getTransactionCustomerJoin($transactionSchema) . '
+     WHERE t.' . $transactionPk . ' = :id LIMIT 1'
 );
 $stmt->execute([':id' => $id]);
 $transaction = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -59,7 +60,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="small text-muted">Transaction ID</div>
-                            <div class="fw-semibold"><?= (int)$transaction['id'] ?></div>
+                            <div class="fw-semibold"><?= (int)$transaction['transaction_id'] ?></div>
                         </div>
                         <div class="col-md-6">
                             <div class="small text-muted">Recorded By</div>

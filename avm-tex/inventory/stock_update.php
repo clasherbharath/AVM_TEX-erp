@@ -5,6 +5,8 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/inventory_validation.php';
+require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../helpers/stock_movement.php';
 
 $pageTitle = 'Update Stock • A.V.M TEX ERP';
 $activeMenu = 'Inventory';
@@ -37,14 +39,32 @@ $form = [
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken('/inventory/stock_update.php?id=' . $id);
+
     $errors = validateStockAdjustment($form, $currentQty);
 
     if ($errors === []) {
         $newQty = applyStockAdjustment($currentQty, $form['stock_action'], (float)$form['adjust_qty']);
 
         try {
+            $pdo->beginTransaction();
+
             $upd = $pdo->prepare('UPDATE inventory SET quantity = :quantity WHERE id = :id');
             $upd->execute([':quantity' => $newQty, ':id' => $id]);
+
+            recordStockMovement(
+                $pdo,
+                'adjustment',
+                $id,
+                $currentQty,
+                $newQty,
+                round($newQty - $currentQty, 2),
+                'stock_update',
+                $id,
+                'Manual stock ' . $form['stock_action'] . ' operation'
+            );
+
+            $pdo->commit();
 
             $_SESSION['flash_success'] = sprintf(
                 'Stock updated for "%s": %s → %s %s',
@@ -56,8 +76,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . APP_BASE . '/inventory/index.php');
             exit;
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             $errors['general'] = APP_DEBUG
                 ? 'Database error: ' . $e->getMessage()
+                : 'Failed to update stock.';
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $errors['general'] = APP_DEBUG
+                ? $e->getMessage()
                 : 'Failed to update stock.';
         }
     }
@@ -101,6 +131,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
         <div class="card avm-card">
             <div class="card-body">
                 <form method="post" action="<?= APP_BASE ?>/inventory/stock_update.php?id=<?= $id ?>">
+                    <?= csrfTokenInput() ?>
                     <input type="hidden" name="id" value="<?= $id ?>">
 
                     <div class="mb-3">

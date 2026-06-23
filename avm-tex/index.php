@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config/app.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!empty($_SESSION['admin_id'])) {
     header('Location: ' . APP_BASE . '/dashboard/dashboard.php');

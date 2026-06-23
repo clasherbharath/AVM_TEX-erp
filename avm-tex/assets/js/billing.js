@@ -18,6 +18,21 @@
     return html;
   }
 
+  function getNextRowIndex() {
+    const rows = tbody.querySelectorAll('tr');
+    let maxIdx = -1;
+    rows.forEach((row) => {
+      const selects = row.querySelectorAll('select, input');
+      selects.forEach((el) => {
+        const match = el.name.match(/items\[(\d+)\]/);
+        if (match && parseInt(match[1]) > maxIdx) {
+          maxIdx = parseInt(match[1]);
+        }
+      });
+    });
+    return maxIdx + 1;
+  }
+
   function bindRow(row) {
     const productSelect = row.querySelector('.item-product');
     const qtyInput = row.querySelector('.item-qty');
@@ -44,9 +59,16 @@
   }
 
   function addRow(data = {}) {
+    const rowIndex = getNextRowIndex();
     const clone = tpl.content.cloneNode(true);
     const row = clone.querySelector('tr');
-
+    
+    // Replace ROW_INDEX placeholder with actual index
+    const inputs = row.querySelectorAll('select, input[type="number"]');
+    inputs.forEach((el) => {
+      el.name = el.name.replace('ROW_INDEX', rowIndex);
+    });
+    
     row.querySelector('.item-product').innerHTML = productOptions(data.product_id || '');
     if (data.product_id) {
       row.querySelector('.item-qty').value = data.quantity || '1';

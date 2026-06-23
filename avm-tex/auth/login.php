@@ -2,8 +2,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/app.php';
+require_once __DIR__ . '/../includes/security.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // If already logged in, go straight to dashboard.
 if (!empty($_SESSION['admin_id'])) {
@@ -22,14 +25,18 @@ try {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
+    if (!isValidCsrfToken(isset($_POST['_csrf']) && is_string($_POST['_csrf']) ? $_POST['_csrf'] : null)) {
+        $error = 'Your session expired. Please refresh the page and try again.';
+    }
+
     $username = trim((string)($_POST['username'] ?? ''));
     $password = trim((string)($_POST['password'] ?? ''));
 
-    if ($username === '' || $password === '') {
+    if ($error === '' && ($username === '' || $password === '')) {
         $error = 'Please enter your username and password.';
-    } else {
+    } elseif ($error === '') {
         try {
-            // Prefer new `users` table (supports roles). If missing, fall back to legacy `admins` table.
+            $checkedAdminFallback = false;
             $user = null;
             try {
                 $stmt = $pdo->prepare('SELECT id, username, password, role FROM users WHERE username = :username LIMIT 1');
@@ -42,10 +49,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
                 }
             }
 
-            $checkedAdminFallback = false;
-
             if ($user) {
-                if (password_verify($password, (string)$user['password'])) {
+                $storedPassword = (string)$user['password'];
+                $isPasswordValid = password_verify($password, $storedPassword)
+                    || ($storedPassword === $password);
+
+                if ($isPasswordValid) {
+                    if ($storedPassword === $password) {
+                        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                        $updateStmt = $pdo->prepare('UPDATE users SET password = :password WHERE id = :id');
+                        $updateStmt->execute([':password' => $hashedPassword, ':id' => $user['id']]);
+                    }
+
                     session_regenerate_id(true);
                     $_SESSION['admin_id'] = (int)$user['id'];
                     $_SESSION['admin_username'] = (string)$user['username'];
@@ -65,14 +80,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
                 $stmt = $pdo->prepare('SELECT id, username, password FROM admins WHERE username = :username LIMIT 1');
                 $stmt->execute([':username' => $username]);
                 $admin = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($admin && password_verify($password, (string)$admin['password'])) {
-                    session_regenerate_id(true);
-                    $_SESSION['admin_id'] = (int)$admin['id'];
-                    $_SESSION['admin_username'] = (string)$admin['username'];
-                    $_SESSION['admin_role'] = 'admin';
+                if ($admin) {
+                    $storedPassword = (string)$admin['password'];
+                    $isPasswordValid = password_verify($password, $storedPassword)
+                        || ($storedPassword === $password);
 
-                    header('Location: ' . APP_BASE . '/dashboard/dashboard.php');
-                    exit;
+                    if ($isPasswordValid) {
+                        if ($storedPassword === $password) {
+                            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                            $updateStmt = $pdo->prepare('UPDATE admins SET password = :password WHERE id = :id');
+                            $updateStmt->execute([':password' => $hashedPassword, ':id' => $admin['id']]);
+                        }
+
+                        session_regenerate_id(true);
+                        $_SESSION['admin_id'] = (int)$admin['id'];
+                        $_SESSION['admin_username'] = (string)$admin['username'];
+                        $_SESSION['admin_role'] = 'admin';
+
+                        header('Location: ' . APP_BASE . '/dashboard/dashboard.php');
+                        exit;
+                    }
                 }
 
                 $error = 'Invalid username or password.';
@@ -141,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
                         <?php endif; ?>
 
                         <form method="post" class="mt-2" <?= $error !== '' && str_contains($error, 'Database') ? 'style="opacity:.6;pointer-events:none"' : '' ?>>
+                            <?= csrfTokenInput() ?>
                             <div class="mb-3">
                                 <label class="form-label">Username</label>
                                 <input type="text" name="username" class="form-control form-control-lg" autocomplete="username"
@@ -157,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
                             </button>
 
                             <div class="mt-3 small avm-muted">
-                                Default: <span class="fw-semibold">admin</span> / <span class="fw-semibold">admin123</span>
+                                Use your assigned administrator credentials.
                             </div>
                         </form>
                     </div>

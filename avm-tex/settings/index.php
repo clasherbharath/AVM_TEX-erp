@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/security.php';
 
 // Restrict to admin role
 if (empty($_SESSION['admin_role']) || $_SESSION['admin_role'] !== 'admin') {
@@ -65,6 +66,8 @@ try {
 
 // Handle form submit
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken('/settings/index.php');
+
     $companyName = trim($_POST['company_name'] ?? '');
     $gstNumber = trim($_POST['gst_number'] ?? '');
     $address = trim($_POST['address'] ?? '');
@@ -83,24 +86,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_FILES['logo']) && is_array($_FILES['logo']) && $_FILES['logo']['error'] !== UPLOAD_ERR_NO_FILE) {
         $file = $_FILES['logo'];
         if ($file['error'] === UPLOAD_ERR_OK) {
-            $allowed = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            $mime = finfo_file($finfo, $file['tmp_name']);
-            finfo_close($finfo);
-            if (!in_array($mime, $allowed, true)) {
-                $flashError = 'Unsupported logo file type. Use PNG, JPG, WEBP or SVG.';
+            if ((int)$file['size'] > 2 * 1024 * 1024) {
+                $flashError = 'Logo file must be 2 MB or smaller.';
             } else {
-                $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-                $safeName = 'company_logo_' . time() . '.' . $ext;
-                $destDir = __DIR__ . '/../uploads';
-                if (!is_dir($destDir)) {
-                    mkdir($destDir, 0755, true);
-                }
-                $destPath = $destDir . '/' . $safeName;
-                if (!move_uploaded_file($file['tmp_name'], $destPath)) {
-                    $flashError = 'Failed to move uploaded logo file.';
+                $allowed = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $mime = finfo_file($finfo, $file['tmp_name']);
+                finfo_close($finfo);
+                if (!in_array($mime, $allowed, true)) {
+                    $flashError = 'Unsupported logo file type. Use PNG, JPG, WEBP or SVG.';
                 } else {
-                    $uploadedLogoPath = APP_BASE . '/uploads/' . $safeName;
+                    $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+                    $safeName = 'company_logo_' . time() . '.' . $ext;
+                    $destDir = __DIR__ . '/../uploads';
+                    if (!is_dir($destDir)) {
+                        mkdir($destDir, 0755, true);
+                    }
+                    $destPath = $destDir . '/' . $safeName;
+                    if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+                        $flashError = 'Failed to move uploaded logo file.';
+                    } else {
+                        $uploadedLogoPath = APP_BASE . '/uploads/' . $safeName;
+                    }
                 }
             }
         } else {
@@ -174,6 +181,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
             <div class="card avm-card">
                 <div class="card-body">
                     <form method="post" enctype="multipart/form-data">
+                        <?= csrfTokenInput() ?>
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Company Name</label>

@@ -5,6 +5,8 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../helpers/format_currency.php';
+require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../helpers/transaction_schema.php';
 
 $pageTitle = 'Transactions • A.V.M TEX ERP';
 $activeMenu = 'Transactions';
@@ -14,6 +16,7 @@ $paymentMethod = trim((string)($_GET['payment_method'] ?? ''));
 $transactions = [];
 $totalAmount = 0.0;
 $dbError = '';
+$transactionSchema = getTransactionSchema($pdo);
 
 $validMethods = [
     'cash' => 'Cash',
@@ -24,34 +27,28 @@ $validMethods = [
 ];
 
 try {
-    $sql = 'SELECT t.id, t.invoice_id, t.reference_number, t.transaction_date, t.transaction_type,
-                   t.amount, t.payment_method, t.bank_name, t.cheque_number, t.transaction_notes,
-                   t.recorded_by, t.created_at, t.updated_at,
+    $sql = 'SELECT ' . implode(', ', getTransactionSelectParts($transactionSchema)) . ',
                    i.invoice_number, c.customer_name
             FROM transactions t
             LEFT JOIN invoices i ON t.invoice_id = i.id
-            LEFT JOIN customers c ON i.customer_id = c.id
+            ' . getTransactionCustomerJoin($transactionSchema) . '
             WHERE 1=1';
     $params = [];
     $totalParams = [];
 
     if ($search !== '') {
-        $sql .= ' AND (t.id = :id_search OR t.transaction_type LIKE :search_type OR '
-               . 't.payment_method LIKE :search_method OR t.transaction_notes LIKE :search_notes OR t.reference_number LIKE :search_reference '
-               . 'OR i.invoice_number LIKE :search_invoice OR c.customer_name LIKE :search_customer)';
+        $sql .= ' AND (' . implode(' OR ', getTransactionSearchConditions($transactionSchema)) . ')';
         $params[':id_search'] = is_numeric($search) ? (int)$search : 0;
         $params[':search_type'] = '%' . $search . '%';
         $params[':search_method'] = '%' . $search . '%';
         $params[':search_notes'] = '%' . $search . '%';
-        $params[':search_reference'] = '%' . $search . '%';
         $params[':search_invoice'] = '%' . $search . '%';
         $params[':search_customer'] = '%' . $search . '%';
+        if (transactionColumnExists($transactionSchema, 'reference_number')) {
+            $params[':search_reference'] = '%' . $search . '%';
+        }
 
-        $totalParams[':id_search'] = $params[':id_search'];
-        $totalParams[':search_type'] = $params[':search_type'];
-        $totalParams[':search_method'] = $params[':search_method'];
-        $totalParams[':search_notes'] = $params[':search_notes'];
-        $totalParams[':search_reference'] = $params[':search_reference'];
+        $totalParams = $params;
     }
 
     if ($paymentMethod !== '' && isset($validMethods[$paymentMethod])) {
@@ -60,16 +57,19 @@ try {
         $totalParams[':payment_method'] = $paymentMethod;
     }
 
-    $sql .= ' ORDER BY t.transaction_date DESC, t.created_at DESC';
+    $sql .= ' ORDER BY ' . getTransactionOrderBy($transactionSchema);
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $totalSql = 'SELECT COALESCE(SUM(amount), 0) AS total_amount FROM transactions t WHERE 1=1';
+    $totalSql = 'SELECT COALESCE(SUM(t.amount), 0) AS total_amount
+                 FROM transactions t
+                 LEFT JOIN invoices i ON t.invoice_id = i.id
+                 ' . getTransactionCustomerJoin($transactionSchema) . '
+                 WHERE 1=1';
     if ($search !== '') {
-        $totalSql .= ' AND (t.id = :id_search OR t.transaction_type LIKE :search_type OR '
-                   . 't.payment_method LIKE :search_method OR t.transaction_notes LIKE :search_notes OR t.reference_number LIKE :search_reference)';
+        $totalSql .= ' AND (' . implode(' OR ', getTransactionSearchConditions($transactionSchema)) . ')';
     }
     if ($paymentMethod !== '' && isset($validMethods[$paymentMethod])) {
         $totalSql .= ' AND t.payment_method = :payment_method';
@@ -182,7 +182,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                             <?php else: ?>
                                 <?php foreach ($transactions as $transaction): ?>
                                     <tr>
-                                        <td><?= (int)$transaction['id'] ?></td>
+                                        <td><?= (int)$transaction['transaction_id'] ?></td>
                                         <td><?= htmlspecialchars(date('d M Y', strtotime($transaction['transaction_date'] ?? $transaction['created_at']))) ?></td>
                                         <td><?= htmlspecialchars(ucfirst($transaction['transaction_type'])) ?></td>
                                         <td><?= htmlspecialchars($validMethods[$transaction['payment_method']] ?? $transaction['payment_method']) ?></td>
@@ -192,10 +192,11 @@ require_once __DIR__ . '/../includes/sidebar.php';
                                         <td><?= htmlspecialchars($transaction['transaction_notes'] ?? '') ?></td>
                                         <td class="text-end">
                                             <div class="btn-group btn-group-sm" role="group">
-                                                <a href="<?= APP_BASE ?>/transactions/view.php?id=<?= (int)$transaction['id'] ?>" class="btn btn-outline-dark">View</a>
-                                                <a href="<?= APP_BASE ?>/transactions/edit.php?id=<?= (int)$transaction['id'] ?>" class="btn btn-outline-secondary">Edit</a>
+                                                <a href="<?= APP_BASE ?>/transactions/view.php?id=<?= (int)$transaction['transaction_id'] ?>" class="btn btn-outline-dark">View</a>
+                                                <a href="<?= APP_BASE ?>/transactions/edit.php?id=<?= (int)$transaction['transaction_id'] ?>" class="btn btn-outline-secondary">Edit</a>
                                                 <form method="post" action="<?= APP_BASE ?>/transactions/delete.php" class="d-inline" onsubmit="return confirm('Delete this transaction?');">
-                                                    <input type="hidden" name="id" value="<?= (int)$transaction['id'] ?>">
+                                                    <?= csrfTokenInput() ?>
+                                                    <input type="hidden" name="id" value="<?= (int)$transaction['transaction_id'] ?>">
                                                     <button type="submit" class="btn btn-outline-danger">Delete</button>
                                                 </form>
                                             </div>

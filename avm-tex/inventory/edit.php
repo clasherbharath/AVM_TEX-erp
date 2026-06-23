@@ -5,6 +5,8 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/inventory_validation.php';
+require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../helpers/stock_movement.php';
 
 $pageTitle = 'Edit Inventory • A.V.M TEX ERP';
 $activeMenu = 'Inventory';
@@ -35,6 +37,8 @@ if (!$item) {
 $form = inventoryFormFromSource($item);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken('/inventory/edit.php?id=' . $id);
+
     $form = inventoryFormFromSource($_POST);
     $errors = validateInventoryInput($form);
 
@@ -42,6 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = normalizeInventoryInput($form);
 
         try {
+            $pdo->beginTransaction();
+
             $update = $pdo->prepare(
                 'UPDATE inventory SET
                     product_name = :product_name,
@@ -68,12 +74,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':id' => $id,
             ]);
 
+            $previousQty = (float)$item['quantity'];
+            $newQty = (float)$data['quantity'];
+            if (abs($newQty - $previousQty) > 0.00001) {
+                recordStockMovement(
+                    $pdo,
+                    'adjustment',
+                    $id,
+                    $previousQty,
+                    $newQty,
+                    round($newQty - $previousQty, 2),
+                    'inventory_edit',
+                    $id,
+                    'Inventory item updated via edit form'
+                );
+            }
+
+            $pdo->commit();
+
             $_SESSION['flash_success'] = 'Inventory item updated successfully.';
             header('Location: ' . APP_BASE . '/inventory/index.php');
             exit;
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             $errors['general'] = APP_DEBUG
                 ? 'Database error: ' . $e->getMessage()
+                : 'Failed to update inventory item.';
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $errors['general'] = APP_DEBUG
+                ? $e->getMessage()
                 : 'Failed to update inventory item.';
         }
     }

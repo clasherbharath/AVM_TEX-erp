@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/security.php';
 
 // Role check
 if (empty($_SESSION['admin_role']) || $_SESSION['admin_role'] !== 'admin') {
@@ -37,10 +38,28 @@ try {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken('/users/edit.php?id=' . $id);
+
     $role = in_array($_POST['role'] ?? '', ['admin', 'staff'], true) ? $_POST['role'] : 'staff';
     $password = $_POST['password'] ?? '';
+    $currentUserId = (int)($_SESSION['admin_id'] ?? 0);
 
     try {
+        if ($currentUserId > 0 && $currentUserId === $id) {
+            $currentRole = (string)($user['role'] ?? 'staff');
+            if ($currentRole === 'admin' && $role !== 'admin') {
+                throw new RuntimeException('You cannot remove your own admin access.');
+            }
+        }
+
+        if ($role !== 'admin') {
+            $adminCount = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
+            $targetIsAdmin = (string)($user['role'] ?? '') === 'admin';
+            if ($targetIsAdmin && $adminCount <= 1) {
+                throw new RuntimeException('At least one admin account must remain active.');
+            }
+        }
+
         $setParts = ['role = :role'];
         $params = [':role' => $role, ':id' => $id];
 
@@ -58,6 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . APP_BASE . '/users/index.php');
         exit;
     } catch (PDOException $e) {
+        $error = APP_DEBUG ? $e->getMessage() : 'Failed to update user.';
+    } catch (Throwable $e) {
         $error = APP_DEBUG ? $e->getMessage() : 'Failed to update user.';
     }
 }
@@ -82,6 +103,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
             <div class="card avm-card">
                 <div class="card-body">
                     <form method="post">
+                        <?= csrfTokenInput() ?>
                         <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
                         <div class="row g-3">
                             <div class="col-12 col-md-6">

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/security.php';
 
 $pageTitle = 'Billing • A.V.M TEX ERP';
 $activeMenu = 'Billing';
@@ -253,6 +254,7 @@ $statusBadge = static function (string $status): string {
                         <div class="modal-footer border-0">
                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                             <form method="post" action="<?= APP_BASE ?>/billing/delete_invoice.php">
+                                <?= csrfTokenInput() ?>
                                 <input type="hidden" name="id" id="deleteInvoiceId">
                                 <button type="submit" class="btn btn-danger">Delete</button>
                             </form>

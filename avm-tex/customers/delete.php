@@ -4,12 +4,17 @@ declare(strict_types=1);
 require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/security.php';
+
+requireAdminRole('/customers/index.php');
 
 // Only allow POST to prevent accidental deletes via URL.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: ' . APP_BASE . '/customers/index.php');
     exit;
 }
+
+requireValidCsrfToken('/customers/index.php');
 
 $id = (int)($_POST['id'] ?? 0);
 

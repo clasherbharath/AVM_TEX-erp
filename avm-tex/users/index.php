@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/security.php';
 
 // Role check
 if (empty($_SESSION['admin_role']) || $_SESSION['admin_role'] !== 'admin') {
@@ -62,6 +63,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                                         <td class="text-end">
                                             <a href="<?= APP_BASE ?>/users/edit.php?id=<?= (int)$u['id'] ?>" class="btn btn-sm btn-outline-secondary">Edit</a>
                                             <form method="post" action="<?= APP_BASE ?>/users/delete.php" class="d-inline" onsubmit="return confirm('Delete this user?');">
+                                                <?= csrfTokenInput() ?>
                                                 <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
                                                 <button class="btn btn-sm btn-outline-danger">Delete</button>
                                             </form>

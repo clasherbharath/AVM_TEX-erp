@@ -10,11 +10,13 @@
  * - int|null $transactionId
  */
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/security.php';
 $transactionId = $transactionId ?? null;
 $formAction = $formAction ?? APP_BASE . '/transactions/add.php';
 $submitLabel = $submitLabel ?? 'Save Transaction';
 ?>
 <form method="post" action="<?= $formAction ?>">
+    <?= csrfTokenInput() ?>
     <?php if ($transactionId !== null): ?>
         <input type="hidden" name="id" value="<?= (int)$transactionId ?>">
     <?php endif; ?>

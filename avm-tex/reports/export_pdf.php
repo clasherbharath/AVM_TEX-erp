@@ -100,6 +100,93 @@ try {
             $html .= '<td>₹ ' . number_format((float)$row['total_purchase'], 2) . '</td></tr>';
         }
         $html .= '</tbody></table>';
+    } elseif ($reportType === 'purchases') {
+        $html .= '<h2>Purchase Report</h2>';
+        $html .= '<table><thead><tr><th>PO #</th><th>Supplier</th><th>Order Date</th><th>Total</th><th>Paid</th><th>Balance</th></tr></thead><tbody>';
+
+        $stmt = $pdo->query(
+            "SELECT po.po_number, s.supplier_name, po.order_date, po.grand_total,
+                    COALESCE(pay.total_paid, 0) AS total_paid,
+                    GREATEST(po.grand_total - COALESCE(pay.total_paid, 0), 0) AS balance_due
+             FROM purchase_orders po
+             INNER JOIN suppliers s ON s.id = po.supplier_id
+             LEFT JOIN (
+                 SELECT purchase_order_id, COALESCE(SUM(amount), 0) AS total_paid
+                 FROM supplier_payments GROUP BY purchase_order_id
+             ) pay ON pay.purchase_order_id = po.id
+             ORDER BY po.order_date DESC, po.id DESC"
+        );
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $html .= '<tr><td>' . htmlspecialchars($row['po_number']) . '</td>';
+            $html .= '<td>' . htmlspecialchars($row['supplier_name']) . '</td>';
+            $html .= '<td>' . htmlspecialchars(date('d M Y', strtotime($row['order_date']))) . '</td>';
+            $html .= '<td>₹ ' . number_format((float)$row['grand_total'], 2) . '</td>';
+            $html .= '<td>₹ ' . number_format((float)$row['total_paid'], 2) . '</td>';
+            $html .= '<td>₹ ' . number_format((float)$row['balance_due'], 2) . '</td></tr>';
+        }
+        $html .= '</tbody></table>';
+    } elseif ($reportType === 'suppliers') {
+        $html .= '<h2>Supplier Report</h2>';
+        $html .= '<table><thead><tr><th>Supplier</th><th>Phone</th><th>Purchase</th><th>Paid</th><th>Balance</th></tr></thead><tbody>';
+
+        $stmt = $pdo->query(
+            "SELECT s.supplier_name, s.phone,
+                    COALESCE(p.total_purchase, 0) AS total_purchase,
+                    COALESCE(paid.total_paid, 0) AS total_paid,
+                    GREATEST(COALESCE(p.total_purchase, 0) - COALESCE(paid.total_paid, 0), 0) AS balance_due
+             FROM suppliers s
+             LEFT JOIN (
+                 SELECT supplier_id, COALESCE(SUM(grand_total), 0) AS total_purchase
+                 FROM purchase_orders GROUP BY supplier_id
+             ) p ON p.supplier_id = s.id
+             LEFT JOIN (
+                 SELECT po.supplier_id, COALESCE(SUM(sp.amount), 0) AS total_paid
+                 FROM purchase_orders po
+                 INNER JOIN supplier_payments sp ON sp.purchase_order_id = po.id
+                 GROUP BY po.supplier_id
+             ) paid ON paid.supplier_id = s.id
+             ORDER BY balance_due DESC, s.supplier_name ASC"
+        );
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $html .= '<tr><td>' . htmlspecialchars($row['supplier_name']) . '</td>';
+            $html .= '<td>' . htmlspecialchars($row['phone']) . '</td>';
+            $html .= '<td>₹ ' . number_format((float)$row['total_purchase'], 2) . '</td>';
+            $html .= '<td>₹ ' . number_format((float)$row['total_paid'], 2) . '</td>';
+            $html .= '<td>₹ ' . number_format((float)$row['balance_due'], 2) . '</td></tr>';
+        }
+        $html .= '</tbody></table>';
+    } elseif ($reportType === 'payables') {
+        $html .= '<h2>Accounts Payable</h2>';
+        $html .= '<table><thead><tr><th>Supplier</th><th>PO Count</th><th>Outstanding</th></tr></thead><tbody>';
+
+        $stmt = $pdo->query(
+            "SELECT s.supplier_name,
+                    COALESCE(po.po_count, 0) AS po_count,
+                    GREATEST(COALESCE(p.total_purchase, 0) - COALESCE(paid.total_paid, 0), 0) AS outstanding
+             FROM suppliers s
+             LEFT JOIN (
+                 SELECT supplier_id, COUNT(*) AS po_count
+                 FROM purchase_orders GROUP BY supplier_id
+             ) po ON po.supplier_id = s.id
+             LEFT JOIN (
+                 SELECT supplier_id, COALESCE(SUM(grand_total), 0) AS total_purchase
+                 FROM purchase_orders GROUP BY supplier_id
+             ) p ON p.supplier_id = s.id
+             LEFT JOIN (
+                 SELECT po.supplier_id, COALESCE(SUM(sp.amount), 0) AS total_paid
+                 FROM purchase_orders po
+                 INNER JOIN supplier_payments sp ON sp.purchase_order_id = po.id
+                 GROUP BY po.supplier_id
+             ) paid ON paid.supplier_id = s.id
+             WHERE GREATEST(COALESCE(p.total_purchase, 0) - COALESCE(paid.total_paid, 0), 0) > 0
+             ORDER BY outstanding DESC, s.supplier_name ASC"
+        );
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $html .= '<tr><td>' . htmlspecialchars($row['supplier_name']) . '</td>';
+            $html .= '<td>' . (int)$row['po_count'] . '</td>';
+            $html .= '<td>₹ ' . number_format((float)$row['outstanding'], 2) . '</td></tr>';
+        }
+        $html .= '</tbody></table>';
     }
 } catch (PDOException $e) {
     $html .= '<p style="color: red;">Error: ' . (APP_DEBUG ? htmlspecialchars($e->getMessage()) : 'Could not export data') . '</p>';

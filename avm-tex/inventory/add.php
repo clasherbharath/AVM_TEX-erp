@@ -5,6 +5,8 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/inventory_validation.php';
+require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../helpers/stock_movement.php';
 
 $pageTitle = 'Add Inventory • A.V.M TEX ERP';
 $activeMenu = 'Inventory';
@@ -13,6 +15,8 @@ $errors = [];
 $form = emptyInventoryForm();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken('/inventory/add.php');
+
     $form = inventoryFormFromSource($_POST);
     $errors = validateInventoryInput($form);
 
@@ -20,6 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = normalizeInventoryInput($form);
 
         try {
+            $pdo->beginTransaction();
+
             $stmt = $pdo->prepare(
                 'INSERT INTO inventory (
                     product_name, category, quantity, unit,
@@ -43,12 +49,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':barcode' => $data['barcode'],
             ]);
 
+            $itemId = (int)$pdo->lastInsertId();
+            recordStockMovement(
+                $pdo,
+                'initial',
+                $itemId,
+                0.0,
+                (float)$data['quantity'],
+                (float)$data['quantity'],
+                'inventory',
+                $itemId,
+                'Initial stock recorded when item was created'
+            );
+
+            $pdo->commit();
+
             $_SESSION['flash_success'] = 'Inventory item added successfully.';
             header('Location: ' . APP_BASE . '/inventory/index.php');
             exit;
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             $errors['general'] = APP_DEBUG
                 ? 'Database error: ' . $e->getMessage()
+                : 'Failed to save inventory item.';
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $errors['general'] = APP_DEBUG
+                ? $e->getMessage()
                 : 'Failed to save inventory item.';
         }
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/security.php';
 
 // Role check
 if (empty($_SESSION['admin_role']) || $_SESSION['admin_role'] !== 'admin') {
@@ -17,6 +18,8 @@ $activeMenu = 'Users';
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken('/users/add.php');
+
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     $role = in_array($_POST['role'] ?? '', ['admin', 'staff'], true) ? $_POST['role'] : 'staff';
@@ -61,6 +64,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
             <div class="card avm-card">
                 <div class="card-body">
                     <form method="post">
+                        <?= csrfTokenInput() ?>
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Username</label>

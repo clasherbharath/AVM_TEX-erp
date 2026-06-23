@@ -15,6 +15,8 @@ $navItems = [
     'Customers' => '/avm-tex/customers/index.php',
     'Billing' => '/avm-tex/billing/index.php',
     'Inventory' => '/avm-tex/inventory/index.php',
+    'Suppliers' => '/avm-tex/suppliers/index.php',
+    'Purchases' => '/avm-tex/purchases/index.php',
     'Transactions' => '/avm-tex/transactions/index.php',
     'Reports' => '/avm-tex/reports/index.php',
 ];

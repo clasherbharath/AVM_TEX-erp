@@ -5,6 +5,7 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/inventory_validation.php';
+require_once __DIR__ . '/../includes/security.php';
 
 $pageTitle = 'Inventory • A.V.M TEX ERP System';
 $activeMenu = 'Inventory';
@@ -225,6 +226,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                                             <td class="text-end">
                                                 <div class="btn-group btn-group-sm flex-wrap">
                                                     <a href="<?= APP_BASE ?>/inventory/stock_update.php?id=<?= (int)($row['id'] ?? 0) ?>" class="btn btn-outline-success">Stock</a>
+                                                    <a href="<?= APP_BASE ?>/reports/inventory_history_report.php?product_id=<?= (int)($row['id'] ?? 0) ?>" class="btn btn-outline-primary">History</a>
                                                     <a href="<?= APP_BASE ?>/inventory/edit.php?id=<?= (int)($row['id'] ?? 0) ?>" class="btn btn-outline-dark">Edit</a>
                                                     <button type="button" class="btn btn-outline-danger"
                                                             data-bs-toggle="modal"
@@ -258,6 +260,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                         <div class="modal-footer border-0">
                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                             <form method="post" action="<?= APP_BASE ?>/inventory/delete.php">
+                                <?= csrfTokenInput() ?>
                                 <input type="hidden" name="id" id="deleteInventoryId" value="">
                                 <button type="submit" class="btn btn-danger">Yes, Delete</button>
                             </form>

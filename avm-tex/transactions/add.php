@@ -5,6 +5,8 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/transaction_validation.php';
+require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../helpers/transaction_schema.php';
 
 $pageTitle = 'Add Transaction • A.V.M TEX ERP';
 $activeMenu = 'Transactions';
@@ -12,6 +14,7 @@ $activeMenu = 'Transactions';
 $errors = [];
 $form = emptyTransactionForm();
 $invoiceOptions = [];
+$transactionSchema = getTransactionSchema($pdo);
 
 $stmt = $pdo->query(
     'SELECT i.id, i.invoice_number, c.customer_name
@@ -22,12 +25,15 @@ $stmt = $pdo->query(
 $invoiceOptions = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken('/transactions/add.php');
+
     $form = transactionFormFromSource($_POST);
     $errors = validateTransactionInput($form);
 
     if ($errors === []) {
         $data = normalizeTransactionInput($form);
         $recordedBy = isset($_SESSION['admin_id']) ? (int)$_SESSION['admin_id'] : null;
+        $customerId = getInvoiceCustomerId($pdo, $data['invoice_id']);
 
         if ($data['invoice_id'] !== null) {
             $invoiceCheck = $pdo->prepare('SELECT id FROM invoices WHERE id = :id LIMIT 1');
@@ -36,40 +42,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors['invoice_id'] = 'Select a valid invoice.';
             }
         }
+
+        if ($errors === [] && !empty($transactionSchema['customer_id_required']) && $customerId === null) {
+            $errors['invoice_id'] = 'Select an invoice before saving this transaction.';
+        }
+
+        if ($errors === [] && $data['invoice_id'] !== null) {
+            $amountError = validateInvoiceTransactionAmount(
+                $pdo,
+                $data['invoice_id'],
+                $data['transaction_type'],
+                $data['amount']
+            );
+
+            if ($amountError !== null) {
+                $errors['amount'] = $amountError;
+            }
+        }
     }
 
     if ($errors === []) {
         try {
-            $insert = $pdo->prepare(
-                'INSERT INTO transactions (
-                    transaction_type, invoice_id, reference_number,
-                    transaction_date, amount, payment_method, bank_name,
-                    cheque_number, transaction_notes, recorded_by
-                 ) VALUES (
-                    :transaction_type, :invoice_id, :reference_number,
-                    :transaction_date, :amount, :payment_method, :bank_name,
-                    :cheque_number, :transaction_notes, :recorded_by
-                 )'
-            );
-            $insert->execute([
-                ':transaction_type' => $data['transaction_type'],
-                ':invoice_id' => $data['invoice_id'],
-                ':reference_number' => $data['reference_number'],
-                ':transaction_date' => $data['transaction_date'],
-                ':amount' => $data['amount'],
-                ':payment_method' => $data['payment_method'],
-                ':bank_name' => $data['bank_name'],
-                ':cheque_number' => $data['cheque_number'],
-                ':transaction_notes' => $data['transaction_notes'],
-                ':recorded_by' => $recordedBy !== null ? $recordedBy : null,
+            $pdo->beginTransaction();
+
+            $write = buildTransactionWriteSet($transactionSchema, [
+                'transaction_type' => $data['transaction_type'],
+                'invoice_id' => $data['invoice_id'],
+                'customer_id' => $customerId,
+                'reference_number' => $data['reference_number'],
+                'transaction_date' => $data['transaction_date'],
+                'amount' => $data['amount'],
+                'payment_method' => $data['payment_method'],
+                'bank_name' => $data['bank_name'],
+                'cheque_number' => $data['cheque_number'],
+                'transaction_notes' => $data['transaction_notes'],
+                'recorded_by' => $recordedBy,
             ]);
+
+            $placeholders = [];
+            foreach ($write['columns'] as $column) {
+                $placeholders[] = ':' . $column;
+            }
+
+            $insert = $pdo->prepare(
+                'INSERT INTO transactions (' . implode(', ', $write['columns']) . ')
+                 VALUES (' . implode(', ', $placeholders) . ')'
+            );
+            $insert->execute($write['params']);
+
+            if ($data['invoice_id'] !== null) {
+                syncInvoiceStatusFromTransactions($pdo, $data['invoice_id']);
+            }
+
+            $pdo->commit();
 
             $_SESSION['flash_success'] = 'Transaction added successfully.';
             header('Location: ' . APP_BASE . '/transactions/index.php');
             exit;
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             $errors['general'] = APP_DEBUG
                 ? 'Database error: ' . $e->getMessage()
+                : 'Failed to save the transaction. Please try again.';
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $errors['general'] = APP_DEBUG
+                ? $e->getMessage()
                 : 'Failed to save the transaction. Please try again.';
         }
     }

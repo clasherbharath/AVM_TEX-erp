@@ -5,11 +5,16 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/billing_validation.php';
+require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../helpers/transaction_schema.php';
+require_once __DIR__ . '/../helpers/stock_movement.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: ' . APP_BASE . '/billing/create.php');
     exit;
 }
+
+requireValidCsrfToken('/billing/create.php', 'Your session expired while saving the invoice. Please try again.');
 
 $items = [
     'product_id' => $_POST['product_id'] ?? [],
@@ -40,24 +45,40 @@ if ($invoiceNumber === '') {
     $invoiceNumber = generateInvoiceNumber($pdo);
 }
 
-$customerCheck = $pdo->prepare('SELECT id FROM customers WHERE id = :id LIMIT 1');
-$customerCheck->execute([':id' => $validation['customer_id']]);
-if (!$customerCheck->fetch()) {
-    $_SESSION['flash_error'] = 'Selected customer does not exist. Please choose an existing customer before saving the invoice.';
-    $_SESSION['invoice_form_old'] = $_POST;
-    header('Location: ' . APP_BASE . '/billing/create.php');
-    exit;
-}
-
 try {
     $pdo->beginTransaction();
 
+    $qtyByProduct = [];
     foreach ($totals['lines'] as $line) {
-        $lock = $pdo->prepare('SELECT product_name, quantity FROM inventory WHERE id = :id FOR UPDATE');
-        $lock->execute([':id' => $line['product_id']]);
-        $stock = $lock->fetch(PDO::FETCH_ASSOC);
+        $productId = (int)$line['product_id'];
+        $qtyByProduct[$productId] = ($qtyByProduct[$productId] ?? 0.0) + (float)$line['quantity'];
+    }
 
-        if (!$stock || (float)$stock['quantity'] < $line['quantity']) {
+    $lockedInventory = [];
+    if ($qtyByProduct !== []) {
+        $placeholders = [];
+        $lockParams = [];
+        foreach (array_values(array_keys($qtyByProduct)) as $index => $productId) {
+            $placeholder = ':product_' . $index;
+            $placeholders[] = $placeholder;
+            $lockParams[$placeholder] = $productId;
+        }
+
+        $lock = $pdo->prepare(
+            'SELECT id, product_name, quantity FROM inventory WHERE id IN (' . implode(', ', $placeholders) . ') FOR UPDATE'
+        );
+        $lock->execute($lockParams);
+
+        foreach ($lock->fetchAll(PDO::FETCH_ASSOC) as $stockRow) {
+            $lockedInventory[(int)$stockRow['id']] = $stockRow;
+        }
+    }
+
+    $currentStockByProduct = $lockedInventory;
+
+    foreach ($qtyByProduct as $productId => $neededQty) {
+        $stock = $lockedInventory[$productId] ?? null;
+        if (!$stock || (float)$stock['quantity'] < $neededQty) {
             throw new RuntimeException(
                 'Insufficient stock for ' . ($stock['product_name'] ?? 'product') . '.'
             );
@@ -96,11 +117,7 @@ try {
         'UPDATE inventory SET quantity = quantity - :qty WHERE id = :id'
     );
 
-    $insertedRows = 0;
-    $productIds = array_values(is_array($_POST['product_id'] ?? []) ? $_POST['product_id'] : []);
-
-    foreach ($productIds as $idx => $productId) {
-        $line = $totals['lines'][$idx] ?? null;
+    foreach ($totals['lines'] as $line) {
         if (!is_array($line)) {
             continue;
         }
@@ -112,19 +129,6 @@ try {
         $gstAmount = round($subtotal * $gst / 100, 2);
         $total = round($subtotal + $gstAmount, 2);
 
-        if (defined('APP_DEBUG') && APP_DEBUG) {
-            echo '<pre>';
-            print_r([
-                'invoice_id' => $invoiceId,
-                'product_id' => $productId,
-                'quantity' => $quantity,
-                'price' => $price,
-                'gst' => $gst,
-                'total' => $total,
-            ]);
-            echo '</pre>';
-        }
-
         $itemStmt->execute([
             ':invoice_id' => $invoiceId,
             ':product_id' => $line['product_id'],
@@ -133,16 +137,34 @@ try {
             ':gst_percentage' => $gst,
             ':total' => $total,
         ]);
-        $insertedRows++;
 
         $stockStmt->execute([
             ':qty' => $quantity,
             ':id' => $line['product_id'],
         ]);
+
+        $productId = (int)$line['product_id'];
+        $currentQty = (float)($currentStockByProduct[$productId]['quantity'] ?? 0);
+        $newQty = round($currentQty - $quantity, 2);
+
+        recordStockMovement(
+            $pdo,
+            'sale',
+            $productId,
+            $currentQty,
+            $newQty,
+            -$quantity,
+            'invoice',
+            $invoiceId,
+            'Invoice ' . $invoiceNumber . ' created'
+        );
+
+        $currentStockByProduct[$productId]['quantity'] = $newQty;
     }
 
     // Auto-create transaction if invoice status is 'paid'
     if ($validation['status'] === 'paid') {
+        $transactionSchema = getTransactionSchema($pdo);
         $dupCheck = $pdo->prepare(
             'SELECT COUNT(*) as count FROM transactions WHERE invoice_id = :invoice_id'
         );
@@ -150,24 +172,25 @@ try {
         $dupResult = $dupCheck->fetch(PDO::FETCH_ASSOC);
 
         if ((int)($dupResult['count'] ?? 0) === 0) {
-            $transStmt = $pdo->prepare(
-                'INSERT INTO transactions (
-                    transaction_type, invoice_id, reference_number, transaction_date,
-                    amount, payment_method, transaction_notes
-                ) VALUES (
-                    :transaction_type, :invoice_id, :reference_number, :transaction_date,
-                    :amount, :payment_method, :transaction_notes
-                )'
-            );
-            $transStmt->execute([
-                ':transaction_type' => 'payment',
-                ':invoice_id' => $invoiceId,
-                ':reference_number' => 'AUTO-' . $invoiceNumber,
-                ':transaction_date' => $validation['invoice_date'],
-                ':amount' => $totals['grand_total'],
-                ':payment_method' => 'cash',
-                ':transaction_notes' => 'Auto-generated from paid invoice',
+            $write = buildTransactionWriteSet($transactionSchema, [
+                'transaction_type' => 'payment',
+                'invoice_id' => $invoiceId,
+                'customer_id' => $validation['customer_id'],
+                'reference_number' => 'AUTO-' . $invoiceNumber,
+                'transaction_date' => $validation['invoice_date'],
+                'amount' => $totals['grand_total'],
+                'payment_method' => 'cash',
+                'bank_name' => null,
+                'cheque_number' => null,
+                'transaction_notes' => 'Auto-generated from paid invoice',
+                'recorded_by' => isset($_SESSION['admin_id']) ? (int)$_SESSION['admin_id'] : null,
             ]);
+
+            $transStmt = $pdo->prepare(
+                'INSERT INTO transactions (' . implode(', ', $write['columns']) . ')
+                 VALUES (:' . implode(', :', $write['columns']) . ')'
+            );
+            $transStmt->execute($write['params']);
         }
     }
 

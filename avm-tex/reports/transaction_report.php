@@ -5,6 +5,7 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../helpers/format_currency.php';
+require_once __DIR__ . '/../helpers/transaction_schema.php';
 
 $pageTitle = 'Transaction Report • A.V.M TEX ERP';
 $activeMenu = 'Reports';
@@ -17,6 +18,10 @@ $typeStats = [];
 $monthlyData = [];
 $totalAmount = 0.0;
 $dbError = '';
+$transactionSchema = getTransactionSchema($pdo);
+$transactionDateExpr = transactionColumnExists($transactionSchema, 'transaction_date')
+    ? 'transaction_date'
+    : 'created_at';
 
 $validMethods = [
     'cash' => 'Cash',
@@ -47,10 +52,10 @@ try {
     $typeStats = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $stmt = $pdo->prepare(
-        "SELECT DATE_FORMAT(transaction_date, '%Y-%m-%d') AS date, COUNT(*) AS count,
+        "SELECT DATE_FORMAT({$transactionDateExpr}, '%Y-%m-%d') AS date, COUNT(*) AS count,
                 COALESCE(SUM(amount), 0) AS total
-         FROM transactions WHERE DATE_FORMAT(transaction_date, '%Y-%m') = :month
-         GROUP BY DATE_FORMAT(transaction_date, '%Y-%m-%d') ORDER BY date DESC"
+         FROM transactions WHERE DATE_FORMAT({$transactionDateExpr}, '%Y-%m') = :month
+         GROUP BY DATE_FORMAT({$transactionDateExpr}, '%Y-%m-%d') ORDER BY date DESC"
     );
     $stmt->execute([':month' => $month]);
     $monthlyData = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];

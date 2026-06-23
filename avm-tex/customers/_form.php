@@ -4,6 +4,8 @@
  */
 declare(strict_types=1);
 
+require_once __DIR__ . '/../includes/security.php';
+
 $formAction = $formAction ?? (APP_BASE . '/customers/add.php');
 $submitLabel = $submitLabel ?? 'Save Customer';
 $hiddenId = $hiddenId ?? null;
@@ -14,6 +16,7 @@ $fieldError = static function (array $errors, string $field): string {
 ?>
 
 <form method="post" action="<?= htmlspecialchars($formAction) ?>" class="avm-customer-form" novalidate>
+    <?= csrfTokenInput() ?>
     <?php if ($hiddenId !== null): ?>
         <input type="hidden" name="id" value="<?= (int)$hiddenId ?>">
     <?php endif; ?>

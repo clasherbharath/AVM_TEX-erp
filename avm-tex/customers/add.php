@@ -5,6 +5,7 @@ require_once __DIR__ . '/../middleware/auth_check.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/customer_validation.php';
+require_once __DIR__ . '/../includes/security.php';
 
 $pageTitle = 'Add Customer • A.V.M TEX ERP System';
 $activeMenu = 'Customers';
@@ -13,6 +14,8 @@ $errors = [];
 $form = emptyCustomerForm();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken('/customers/add.php');
+
     $form = customerFormFromSource($_POST);
     $errors = validateCustomerInput($form);
 
