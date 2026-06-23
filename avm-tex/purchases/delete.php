@@ -39,6 +39,10 @@ try {
     $delOrder->execute([':id' => $id]);
 
     $pdo->commit();
+
+    // Audit purchase order deletion
+    logAudit($pdo, $_SESSION['admin_id'] ?? null, 'purchase_delete', 'purchase_orders', $id, 'Purchase order deleted');
+
     $_SESSION['flash_success'] = 'Purchase order deleted successfully.';
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {

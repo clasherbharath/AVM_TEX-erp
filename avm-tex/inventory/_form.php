@@ -60,6 +60,16 @@ $fieldError = static function (array $errors, string $field): string {
                 <div class="invalid-feedback d-block"><?= htmlspecialchars($errors['quantity']) ?></div>
             <?php endif; ?>
         </div>
+
+        <div class="col-12 col-md-4">
+            <label for="min_stock" class="form-label">Minimum Stock <span class="text-danger">*</span></label>
+            <input type="number" name="min_stock" id="min_stock" step="0.01" min="0"
+                   class="form-control<?= $fieldError($errors, 'min_stock') ?>"
+                   value="<?= htmlspecialchars($form['min_stock']) ?>" required>
+            <?php if (!empty($errors['min_stock'])): ?>
+                <div class="invalid-feedback d-block"><?= htmlspecialchars($errors['min_stock']) ?></div>
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
 
         <div class="col-12 col-md-4">

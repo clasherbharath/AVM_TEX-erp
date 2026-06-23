@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/transaction_validation.php';
 require_once __DIR__ . '/../includes/security.php';
 require_once __DIR__ . '/../helpers/transaction_schema.php';
+require_once __DIR__ . '/../helpers/audit.php';
 
 $pageTitle = 'Edit Transaction • A.V.M TEX ERP';
 $activeMenu = 'Transactions';
@@ -136,6 +137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $pdo->commit();
+
+            // Audit transaction update
+            logAudit($pdo, $_SESSION['admin_id'] ?? null, 'transaction_edit', 'transactions', $id, 'Transaction updated');
 
             $_SESSION['flash_success'] = 'Transaction updated successfully.';
             header('Location: ' . APP_BASE . '/transactions/index.php');

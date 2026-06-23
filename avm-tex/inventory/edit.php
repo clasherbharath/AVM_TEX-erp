@@ -21,7 +21,7 @@ if ($id <= 0) {
 }
 
 $stmt = $pdo->prepare(
-    'SELECT id, product_name, category, quantity, unit, purchase_price, selling_price,
+    'SELECT id, product_name, category, quantity, min_stock, unit, purchase_price, selling_price,
             supplier, gst_percentage, barcode, created_at, updated_at
      FROM inventory WHERE id = :id LIMIT 1'
 );
@@ -53,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     product_name = :product_name,
                     category = :category,
                     quantity = :quantity,
+                    min_stock = :min_stock,
                     unit = :unit,
                     purchase_price = :purchase_price,
                     selling_price = :selling_price,
@@ -65,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':product_name' => $data['product_name'],
                 ':category' => $data['category'],
                 ':quantity' => $data['quantity'],
+                ':min_stock' => $data['min_stock'],
                 ':unit' => $data['unit'],
                 ':purchase_price' => $data['purchase_price'],
                 ':selling_price' => $data['selling_price'],

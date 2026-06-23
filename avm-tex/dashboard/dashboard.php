@@ -14,7 +14,10 @@ $customerCount = 0;
 $invoiceCount = 0;
 $transactionCount = 0;
 $pendingPaymentsCount = 0;
+$totalInventoryValue = 0.0;
 $lowStockCount = 0;
+$deadStockCount = 0;
+$outOfStockCount = 0;
 $currentMonthRevenue = 0.0;
 $previousMonthRevenue = 0.0;
 $monthlySales = [];
@@ -31,9 +34,35 @@ try {
     $invoiceCount = (int)$pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn();
     $transactionCount = (int)$pdo->query('SELECT COUNT(*) FROM transactions')->fetchColumn();
     $pendingPaymentsCount = (int)$pdo->query("SELECT COUNT(*) FROM invoices WHERE status = 'pending'")->fetchColumn();
-    $lowStockCount = (int)$pdo->query(
-        'SELECT COUNT(*) FROM inventory WHERE quantity <= ' . (int)INVENTORY_LOW_STOCK_THRESHOLD
-    )->fetchColumn();
+
+    $inventoryMetricsStmt = $pdo->query(
+        'SELECT
+            COALESCE(SUM(quantity * purchase_price), 0) AS total_value,
+            SUM(CASE WHEN quantity <= min_stock THEN 1 ELSE 0 END) AS low_stock,
+            SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) AS out_of_stock,
+            SUM(CASE WHEN quantity > 0 AND (
+                    last_sale.last_sale_date IS NULL
+                    OR last_sale.last_sale_date < DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                ) THEN 1 ELSE 0 END) AS dead_stock,
+            SUM(CASE WHEN quantity > min_stock THEN 1 ELSE 0 END) AS in_stock
+         FROM inventory i
+         LEFT JOIN (
+             SELECT ii.product_id, MAX(inv.invoice_date) AS last_sale_date
+             FROM invoice_items ii
+             JOIN invoices inv ON inv.id = ii.invoice_id AND inv.status = "paid"
+             GROUP BY ii.product_id
+         ) last_sale ON last_sale.product_id = i.id'
+    );
+    $inventoryMetrics = $inventoryMetricsStmt->fetch(PDO::FETCH_ASSOC);
+    if ($inventoryMetrics) {
+        $totalInventoryValue = (float)($inventoryMetrics['total_value'] ?? 0);
+        $lowStockCount = (int)($inventoryMetrics['low_stock'] ?? 0);
+        $outOfStockCount = (int)($inventoryMetrics['out_of_stock'] ?? 0);
+        $deadStockCount = (int)($inventoryMetrics['dead_stock'] ?? 0);
+        $inventoryStatus['In Stock'] = (int)($inventoryMetrics['in_stock'] ?? 0);
+        $inventoryStatus['Low Stock'] = $lowStockCount;
+        $inventoryStatus['Out of Stock'] = $outOfStockCount;
+    }
 
     $currentMonth = date('Y-m');
     $previousMonth = date('Y-m', strtotime('-1 month'));
@@ -111,6 +140,41 @@ try {
         $inventoryStatus['Low Stock'] = (int)$inventoryStatusRow['low_stock'];
         $inventoryStatus['Out of Stock'] = (int)$inventoryStatusRow['out_of_stock'];
     }
+
+    // Accounting reconciliation summary metrics
+    $totalsStmt = $pdo->query(
+        // total accounts receivable: sum of positive outstanding balances per invoice
+        "SELECT
+            (SELECT COALESCE(SUM(GREATEST(i.grand_total - COALESCE(net.net_applied,0), 0)), 0)
+             FROM invoices i
+             LEFT JOIN (
+                 SELECT invoice_id,
+                        COALESCE(SUM(
+                            CASE WHEN transaction_type = 'payment' THEN amount
+                                 WHEN transaction_type IN ('refund','credit_memo') THEN -amount
+                                 ELSE 0 END
+                        ), 0) AS net_applied
+                 FROM transactions
+                 GROUP BY invoice_id
+             ) net ON net.invoice_id = i.id
+            ) AS total_ar,
+            (SELECT COALESCE(SUM(GREATEST(po.grand_total - COALESCE(pay.paid_total,0), 0)), 0)
+             FROM purchase_orders po
+             LEFT JOIN (
+                 SELECT purchase_order_id, COALESCE(SUM(amount),0) AS paid_total
+                 FROM supplier_payments
+                 GROUP BY purchase_order_id
+             ) pay ON pay.purchase_order_id = po.id
+            ) AS total_ap,
+            (SELECT COALESCE(SUM(t.amount),0) FROM transactions t WHERE t.transaction_type = 'payment' AND t.invoice_id IS NOT NULL) AS total_customer_payments,
+            (SELECT COALESCE(SUM(sp.amount),0) FROM supplier_payments sp) AS total_supplier_payments
+         "
+    );
+    $totalsRow = $totalsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $totalAccountsReceivable = round((float)($totalsRow['total_ar'] ?? 0), 2);
+    $totalAccountsPayable = round((float)($totalsRow['total_ap'] ?? 0), 2);
+    $totalCustomerPayments = round((float)($totalsRow['total_customer_payments'] ?? 0), 2);
+    $totalSupplierPayments = round((float)($totalsRow['total_supplier_payments'] ?? 0), 2);
 } catch (PDOException $e) {
     $dbError = APP_DEBUG ? $e->getMessage() : 'Unable to load dashboard metrics.';
 }
@@ -142,6 +206,49 @@ require_once __DIR__ . '/../includes/sidebar.php';
             <?php endif; ?>
 
             <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="card avm-card h-100">
+                                <div class="card-body">
+                                    <div class="small avm-muted">Total Accounts Receivable</div>
+                                    <div class="h3 avm-metric mb-1 text-danger"><?= format_inr($totalAccountsReceivable) ?></div>
+                                    <div class="small avm-muted"><a href="<?= APP_BASE ?>/reports/ar_reconciliation.php" class="text-decoration-none">AR Reconciliation</a></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="card avm-card h-100">
+                                <div class="card-body">
+                                    <div class="small avm-muted">Total Accounts Payable</div>
+                                    <div class="h3 avm-metric mb-1 text-warning"><?= format_inr($totalAccountsPayable) ?></div>
+                                    <div class="small avm-muted"><a href="<?= APP_BASE ?>/reports/ap_reconciliation.php" class="text-decoration-none">AP Reconciliation</a></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="card avm-card h-100">
+                                <div class="card-body">
+                                    <div class="small avm-muted">Total Customer Payments</div>
+                                    <div class="h3 avm-metric mb-1 text-success"><?= format_inr($totalCustomerPayments) ?></div>
+                                    <div class="small avm-muted">Payments received from customers</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="card avm-card h-100">
+                                <div class="card-body">
+                                    <div class="small avm-muted">Total Supplier Payments</div>
+                                    <div class="h3 avm-metric mb-1 text-secondary"><?= format_inr($totalSupplierPayments) ?></div>
+                                    <div class="small avm-muted">Payments made to suppliers</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="col-12 col-md-6 col-xl-4">
                     <div class="card avm-card h-100">
                         <div class="card-body">
@@ -205,7 +312,25 @@ require_once __DIR__ . '/../includes/sidebar.php';
                         <div class="card-body">
                             <div class="small avm-muted">Low Stock Items</div>
                             <div class="h3 avm-metric mb-1 <?= $lowStockCount > 0 ? 'text-danger' : '' ?>"><?= $lowStockCount ?></div>
-                            <div class="small avm-muted">Threshold: <?= INVENTORY_LOW_STOCK_THRESHOLD ?> units</div>
+                            <div class="small avm-muted">Uses each item’s minimum stock threshold</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="card avm-card h-100">
+                        <div class="card-body">
+                            <div class="small avm-muted">Dead Stock Count</div>
+                            <div class="h3 avm-metric mb-1 text-danger"><?= $deadStockCount ?></div>
+                            <div class="small avm-muted">No paid sales in last 90 days</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="card avm-card h-100">
+                        <div class="card-body">
+                            <div class="small avm-muted">Out of Stock Count</div>
+                            <div class="h3 avm-metric mb-1 text-danger"><?= $outOfStockCount ?></div>
+                            <div class="small avm-muted">Items with zero available quantity</div>
                         </div>
                     </div>
                 </div>

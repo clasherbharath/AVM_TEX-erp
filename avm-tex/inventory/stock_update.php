@@ -21,7 +21,7 @@ if ($id <= 0) {
 }
 
 $stmt = $pdo->prepare(
-    'SELECT id, product_name, quantity, unit, category FROM inventory WHERE id = :id LIMIT 1'
+    'SELECT id, product_name, quantity, min_stock, unit, category FROM inventory WHERE id = :id LIMIT 1'
 );
 $stmt->execute([':id' => $id]);
 $item = $stmt->fetch();
@@ -120,10 +120,10 @@ require_once __DIR__ . '/../includes/sidebar.php';
         <div class="card avm-card h-100">
             <div class="card-body text-center">
                 <div class="small avm-muted">Current Stock</div>
-                <div class="display-6 avm-metric <?= $currentQty <= INVENTORY_LOW_STOCK_THRESHOLD ? 'text-danger' : '' ?>">
+                <div class="display-6 avm-metric <?= $currentQty <= (float)($item['min_stock'] ?? 0) ? 'text-danger' : '' ?>">
                     <?= number_format($currentQty, 2) ?>
                 </div>
-                <div class="text-muted"><?= htmlspecialchars($item['unit']) ?></div>
+                <div class="text-muted"><?= htmlspecialchars($item['unit']) ?> · Min: <?= number_format((float)($item['min_stock'] ?? 0), 2) ?></div>
             </div>
         </div>
     </div>

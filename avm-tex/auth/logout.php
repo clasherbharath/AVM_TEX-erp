@@ -2,10 +2,15 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/app.php';
+require_once __DIR__ . '/../helpers/audit.php';
+require_once __DIR__ . '/../config/db.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+// Audit logout event if an admin user is present.
+logAudit($pdo ?? null, isset($_SESSION['admin_id']) ? (int)$_SESSION['admin_id'] : null, 'logout', 'users', isset($_SESSION['admin_id']) ? (int)$_SESSION['admin_id'] : null, 'User logged out');
 
 $_SESSION = [];
 

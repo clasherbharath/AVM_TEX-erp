@@ -173,6 +173,51 @@ require_once __DIR__ . '/../includes/sidebar.php';
                                     <span class="badge bg-success rounded-pill">→</span>
                                 </div>
                             </a>
+                            <a href="<?= APP_BASE ?>/reports/low_stock.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Low Stock Report</h6>
+                                        <p class="mb-0 small text-muted">Items at or below their minimum stock threshold.</p>
+                                    </div>
+                                    <span class="badge bg-warning rounded-pill">→</span>
+                                </div>
+                            </a>
+                            <a href="<?= APP_BASE ?>/reports/dead_stock.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Dead Stock Report</h6>
+                                        <p class="mb-0 small text-muted">Items with no sales activity in the last 90 days.</p>
+                                    </div>
+                                    <span class="badge bg-danger rounded-pill">→</span>
+                                </div>
+                            </a>
+                            <a href="<?= APP_BASE ?>/reports/stock_valuation.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Stock Valuation</h6>
+                                        <p class="mb-0 small text-muted">Inventory value by item and category.</p>
+                                    </div>
+                                    <span class="badge bg-info rounded-pill">→</span>
+                                </div>
+                            </a>
+                            <a href="<?= APP_BASE ?>/reports/ar_reconciliation.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">AR Reconciliation</h6>
+                                        <p class="mb-0 small text-muted">Invoice settlement and outstanding balances</p>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">→</span>
+                                </div>
+                            </a>
+                            <a href="<?= APP_BASE ?>/reports/ap_reconciliation.php" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">AP Reconciliation</h6>
+                                        <p class="mb-0 small text-muted">Purchase orders and supplier payments</p>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">→</span>
+                                </div>
+                            </a>
                             <a href="<?= APP_BASE ?>/reports/inventory_history_report.php" class="list-group-item list-group-item-action">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div>

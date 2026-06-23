@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/security.php';
 require_once __DIR__ . '/../helpers/procurement.php';
+require_once __DIR__ . '/../helpers/audit.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: ' . APP_BASE . '/purchases/index.php');
@@ -60,8 +61,13 @@ try {
         ':recorded_by' => $_SESSION['admin_id'] ?? null,
     ]);
 
+    $paymentId = (int)$pdo->lastInsertId();
+
     syncPurchaseOrderState($pdo, $purchaseOrderId);
     $pdo->commit();
+
+    // Audit supplier payment creation
+    logAudit($pdo, $_SESSION['admin_id'] ?? null, 'supplier_payment_create', 'supplier_payments', $paymentId, 'Supplier payment recorded for PO ' . $purchaseOrderId);
 
     $_SESSION['flash_success'] = 'Supplier payment recorded successfully.';
 } catch (Throwable $e) {

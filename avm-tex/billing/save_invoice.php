@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/billing_validation.php';
 require_once __DIR__ . '/../includes/security.php';
 require_once __DIR__ . '/../helpers/transaction_schema.php';
 require_once __DIR__ . '/../helpers/stock_movement.php';
+require_once __DIR__ . '/../helpers/audit.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: ' . APP_BASE . '/billing/create.php');
@@ -195,6 +196,9 @@ try {
     }
 
     $pdo->commit();
+
+    // Audit invoice creation
+    logAudit($pdo, $_SESSION['admin_id'] ?? null, 'invoice_create', 'invoices', $invoiceId, 'Invoice ' . $invoiceNumber . ' created');
 
     unset($_SESSION['invoice_form_old']);
     $_SESSION['flash_success'] = 'Invoice ' . $invoiceNumber . ' saved successfully.';

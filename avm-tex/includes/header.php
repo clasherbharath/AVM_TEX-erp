@@ -9,7 +9,10 @@
 
 declare(strict_types=1);
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
+// Start session only if none exists. Use PHP_SESSION_NONE guard to avoid
+// "session already started" warnings when middleware or includes have
+// already started sessions.
+if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 

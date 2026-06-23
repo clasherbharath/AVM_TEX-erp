@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/security.php';
 require_once __DIR__ . '/../helpers/transaction_schema.php';
+require_once __DIR__ . '/../helpers/audit.php';
 
 requireAdminRole('/transactions/index.php');
 
@@ -44,6 +45,10 @@ try {
     }
 
     $pdo->commit();
+
+    // Audit transaction deletion
+    logAudit($pdo, $_SESSION['admin_id'] ?? null, 'transaction_delete', 'transactions', $id, 'Transaction deleted');
+
     $_SESSION['flash_success'] = 'Transaction deleted successfully.';
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) {

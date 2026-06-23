@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/purchase_validation.php';
 require_once __DIR__ . '/../helpers/procurement.php';
+require_once __DIR__ . '/../helpers/audit.php';
 
 $pageTitle = 'Edit Purchase Order • A.V.M TEX ERP';
 $activeMenu = 'Purchases';
@@ -143,6 +144,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $pdo->commit();
+
+            // Audit purchase order update
+            logAudit($pdo, $_SESSION['admin_id'] ?? null, 'purchase_edit', 'purchase_orders', $id, 'Purchase order updated');
+
             $_SESSION['flash_success'] = 'Purchase order updated successfully.';
             header('Location: ' . APP_BASE . '/purchases/view.php?id=' . $id);
             exit;

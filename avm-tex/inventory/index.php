@@ -29,10 +29,11 @@ try {
             COUNT(*) AS total_products,
             COALESCE(SUM(quantity), 0) AS total_qty,
             COALESCE(SUM(quantity * purchase_price), 0) AS stock_value,
-            SUM(CASE WHEN quantity <= :threshold THEN 1 ELSE 0 END) AS low_stock
+            SUM(CASE WHEN quantity <= min_stock THEN 1 ELSE 0 END) AS low_stock,
+            SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) AS out_of_stock
          FROM inventory'
     );
-    $statsStmt->execute([':threshold' => $threshold]);
+    $statsStmt->execute([]);
     $stats = $statsStmt->fetch(PDO::FETCH_ASSOC);
 
     if (is_array($stats)) {
@@ -43,10 +44,10 @@ try {
     }
 
     $lowStmt = $pdo->prepare(
-        'SELECT id, product_name, quantity, unit FROM inventory
-         WHERE quantity <= :threshold ORDER BY quantity ASC LIMIT 5'
+        'SELECT id, product_name, quantity, min_stock, unit FROM inventory
+         WHERE quantity <= min_stock ORDER BY quantity ASC LIMIT 5'
     );
-    $lowStmt->execute([':threshold' => $threshold]);
+    $lowStmt->execute();
     $lowStockRows = $lowStmt->fetchAll(PDO::FETCH_ASSOC);
     if (!is_array($lowStockRows)) {
         $lowStockRows = [];
@@ -185,6 +186,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                                         <th>Category</th>
                                         <th>Quantity</th>
                                         <th class="d-none d-md-table-cell">Purchase Price</th>
+                                        <th class="d-none d-md-table-cell">Min Stock</th>
                                         <th class="d-none d-md-table-cell">Selling Price</th>
                                         <th class="d-none d-lg-table-cell">Supplier</th>
                                         <th>Stock Status</th>
@@ -198,7 +200,8 @@ require_once __DIR__ . '/../includes/sidebar.php';
                                             continue;
                                         }
                                         $qty = (float)($row['quantity'] ?? 0);
-                                        $status = inventoryStockStatus($qty, $threshold);
+                                        $thresholdValue = isset($row['min_stock']) ? (float)$row['min_stock'] : $threshold;
+                                        $status = inventoryStockStatus($qty, $thresholdValue);
                                         ?>
                                         <tr>
                                             <td class="avm-muted"><?= $index + 1 ?></td>
@@ -214,6 +217,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                                                 <?= htmlspecialchars((string)($row['unit'] ?? '')) ?>
                                             </td>
                                             <td class="d-none d-md-table-cell">₹ <?= number_format((float)($row['purchase_price'] ?? 0), 2) ?></td>
+                                            <td class="d-none d-md-table-cell"><?= number_format((float)($row['min_stock'] ?? 0), 2) ?></td>
                                             <td class="d-none d-md-table-cell">₹ <?= number_format((float)($row['selling_price'] ?? 0), 2) ?></td>
                                             <td class="d-none d-lg-table-cell">
                                                 <?= !empty($row['supplier']) ? htmlspecialchars((string)$row['supplier']) : '<span class="avm-muted">—</span>' ?>

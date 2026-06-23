@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/purchase_validation.php';
 require_once __DIR__ . '/../helpers/procurement.php';
+require_once __DIR__ . '/../helpers/audit.php';
 
 $pageTitle = 'New Purchase Order • A.V.M TEX ERP';
 $activeMenu = 'Purchases';
@@ -115,6 +116,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $pdo->commit();
+
+            // Audit purchase order creation
+            logAudit($pdo, $_SESSION['admin_id'] ?? null, 'purchase_create', 'purchase_orders', $purchaseOrderId, 'Purchase order ' . $purchaseNumber . ' created');
 
             $_SESSION['flash_success'] = 'Purchase order created successfully.';
             header('Location: ' . APP_BASE . '/purchases/view.php?id=' . $purchaseOrderId);

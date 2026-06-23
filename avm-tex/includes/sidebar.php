@@ -23,6 +23,7 @@ $navItems = [
 
 if ($role === 'admin') {
     $navItems['Users'] = '/avm-tex/users/index.php';
+    $navItems['Audit Logs'] = '/avm-tex/admin/audit_logs.php';
     $navItems['Settings'] = '/avm-tex/settings/index.php';
 }
 ?>

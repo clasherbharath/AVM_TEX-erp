@@ -20,6 +20,7 @@ $debugInfo = '';
 
 try {
     require_once __DIR__ . '/../config/database.php';
+    require_once __DIR__ . '/../helpers/audit.php';
 } catch (Throwable $e) {
     $error = 'Database connection failed. Start MySQL in XAMPP and import sql/avm_tex_admins.sql.';
 }
@@ -50,21 +51,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
             }
 
             if ($user) {
-                $storedPassword = (string)$user['password'];
-                $isPasswordValid = password_verify($password, $storedPassword)
-                    || ($storedPassword === $password);
-
-                if ($isPasswordValid) {
-                    if ($storedPassword === $password) {
-                        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-                        $updateStmt = $pdo->prepare('UPDATE users SET password = :password WHERE id = :id');
-                        $updateStmt->execute([':password' => $hashedPassword, ':id' => $user['id']]);
-                    }
-
+                // Only accept password hashes via password_verify. Legacy plain-text
+                // values should be migrated using the provided migration script
+                // `scripts/hash_plaintext_passwords.php` before removing support.
+                if (password_verify($password, (string)$user['password'])) {
                     session_regenerate_id(true);
                     $_SESSION['admin_id'] = (int)$user['id'];
                     $_SESSION['admin_username'] = (string)$user['username'];
                     $_SESSION['admin_role'] = (string)($user['role'] ?? 'staff');
+
+                    // Audit: successful login
+                    logAudit($pdo, $_SESSION['admin_id'] ?? null, 'login', 'users', (int)$user['id'], 'User logged in');
 
                     header('Location: ' . APP_BASE . '/dashboard/dashboard.php');
                     exit;
@@ -80,26 +77,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
                 $stmt = $pdo->prepare('SELECT id, username, password FROM admins WHERE username = :username LIMIT 1');
                 $stmt->execute([':username' => $username]);
                 $admin = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($admin) {
-                    $storedPassword = (string)$admin['password'];
-                    $isPasswordValid = password_verify($password, $storedPassword)
-                        || ($storedPassword === $password);
+                if ($admin && password_verify($password, (string)$admin['password'])) {
+                    session_regenerate_id(true);
+                    $_SESSION['admin_id'] = (int)$admin['id'];
+                    $_SESSION['admin_username'] = (string)$admin['username'];
+                    $_SESSION['admin_role'] = 'admin';
 
-                    if ($isPasswordValid) {
-                        if ($storedPassword === $password) {
-                            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-                            $updateStmt = $pdo->prepare('UPDATE admins SET password = :password WHERE id = :id');
-                            $updateStmt->execute([':password' => $hashedPassword, ':id' => $admin['id']]);
-                        }
+                    // Audit: legacy admin login
+                    logAudit($pdo, $_SESSION['admin_id'] ?? null, 'login', 'admins', (int)$admin['id'], 'Legacy admin logged in');
 
-                        session_regenerate_id(true);
-                        $_SESSION['admin_id'] = (int)$admin['id'];
-                        $_SESSION['admin_username'] = (string)$admin['username'];
-                        $_SESSION['admin_role'] = 'admin';
-
-                        header('Location: ' . APP_BASE . '/dashboard/dashboard.php');
-                        exit;
-                    }
+                    header('Location: ' . APP_BASE . '/dashboard/dashboard.php');
+                    exit;
                 }
 
                 $error = 'Invalid username or password.';

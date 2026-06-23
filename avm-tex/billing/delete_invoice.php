@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/security.php';
 require_once __DIR__ . '/../helpers/stock_movement.php';
+require_once __DIR__ . '/../helpers/audit.php';
 
 requireAdminRole('/billing/index.php');
 
@@ -106,6 +107,10 @@ try {
     $del->execute([':id' => $id]);
 
     $pdo->commit();
+
+    // Audit invoice deletion
+    logAudit($pdo, $_SESSION['admin_id'] ?? null, 'invoice_delete', 'invoices', $id, 'Invoice ' . ($invoice['invoice_number'] ?? '') . ' deleted');
+
     $_SESSION['flash_success'] = 'Invoice ' . $invoice['invoice_number'] . ' deleted and stock restored.';
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) {

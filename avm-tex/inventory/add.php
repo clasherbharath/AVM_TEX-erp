@@ -28,11 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = $pdo->prepare(
                 'INSERT INTO inventory (
-                    product_name, category, quantity, unit,
+                    product_name, category, quantity, min_stock, unit,
                     purchase_price, selling_price, supplier,
                     gst_percentage, barcode
                 ) VALUES (
-                    :product_name, :category, :quantity, :unit,
+                    :product_name, :category, :quantity, :min_stock, :unit,
                     :purchase_price, :selling_price, :supplier,
                     :gst_percentage, :barcode
                 )'
@@ -41,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':product_name' => $data['product_name'],
                 ':category' => $data['category'],
                 ':quantity' => $data['quantity'],
+                ':min_stock' => $data['min_stock'],
                 ':unit' => $data['unit'],
                 ':purchase_price' => $data['purchase_price'],
                 ':selling_price' => $data['selling_price'],

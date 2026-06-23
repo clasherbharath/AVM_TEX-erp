@@ -19,6 +19,7 @@ function validateInventoryInput(array $data, bool $requireQuantity = true): arra
     $unit = trim((string)($data['unit'] ?? ''));
     $supplier = trim((string)($data['supplier'] ?? ''));
     $barcode = trim((string)($data['barcode'] ?? ''));
+    $minStockRaw = (string)($data['min_stock'] ?? '');
 
     $quantityRaw = (string)($data['quantity'] ?? '');
     $purchaseRaw = (string)($data['purchase_price'] ?? '');
@@ -37,6 +38,12 @@ function validateInventoryInput(array $data, bool $requireQuantity = true): arra
 
     if ($unit === '') {
         $errors['unit'] = 'Unit is required.';
+    }
+
+    if ($minStockRaw === '' || !is_numeric($minStockRaw)) {
+        $errors['min_stock'] = 'Minimum stock must be a valid number.';
+    } elseif ((float)$minStockRaw < 0) {
+        $errors['min_stock'] = 'Minimum stock cannot be negative.';
     }
 
     if ($requireQuantity) {
@@ -77,6 +84,7 @@ function normalizeInventoryInput(array $data): array
         'product_name' => trim((string)($data['product_name'] ?? '')),
         'category' => trim((string)($data['category'] ?? '')),
         'quantity' => (float)($data['quantity'] ?? 0),
+        'min_stock' => (float)($data['min_stock'] ?? 10),
         'unit' => trim((string)($data['unit'] ?? 'pcs')),
         'purchase_price' => (float)($data['purchase_price'] ?? 0),
         'selling_price' => (float)($data['selling_price'] ?? 0),
@@ -95,6 +103,7 @@ function emptyInventoryForm(): array
         'product_name' => '',
         'category' => 'Fabric',
         'quantity' => '0',
+        'min_stock' => '10',
         'unit' => 'pcs',
         'purchase_price' => '0',
         'selling_price' => '0',
@@ -114,6 +123,7 @@ function inventoryFormFromSource(array $source): array
         'product_name' => (string)($source['product_name'] ?? ''),
         'category' => (string)($source['category'] ?? ''),
         'quantity' => (string)($source['quantity'] ?? '0'),
+        'min_stock' => (string)($source['min_stock'] ?? '10'),
         'unit' => (string)($source['unit'] ?? 'pcs'),
         'purchase_price' => (string)($source['purchase_price'] ?? '0'),
         'selling_price' => (string)($source['selling_price'] ?? '0'),
@@ -175,7 +185,7 @@ function applyStockAdjustment(float $currentQty, string $action, float $adjustQt
  */
 function inventoryFetchRows(PDO $pdo, string $search = ''): array
 {
-    $sql = 'SELECT id, product_name, category, quantity, unit, purchase_price, selling_price,
+    $sql = 'SELECT id, product_name, category, quantity, min_stock, unit, purchase_price, selling_price,
                    supplier, gst_percentage, barcode, created_at, updated_at
             FROM inventory';
 

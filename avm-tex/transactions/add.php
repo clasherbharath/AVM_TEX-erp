@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/transaction_validation.php';
 require_once __DIR__ . '/../includes/security.php';
 require_once __DIR__ . '/../helpers/transaction_schema.php';
+require_once __DIR__ . '/../helpers/audit.php';
 
 $pageTitle = 'Add Transaction • A.V.M TEX ERP';
 $activeMenu = 'Transactions';
@@ -90,11 +91,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $insert->execute($write['params']);
 
+            $transactionId = (int)$pdo->lastInsertId();
+
             if ($data['invoice_id'] !== null) {
                 syncInvoiceStatusFromTransactions($pdo, $data['invoice_id']);
             }
 
             $pdo->commit();
+
+            // Audit transaction creation
+            logAudit($pdo, $_SESSION['admin_id'] ?? null, 'transaction_create', 'transactions', $transactionId, 'Transaction created');
 
             $_SESSION['flash_success'] = 'Transaction added successfully.';
             header('Location: ' . APP_BASE . '/transactions/index.php');
